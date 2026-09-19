@@ -1,4 +1,4 @@
-# Awesome AI Forensics [![Awesome](https://awesome.re/badge.svg)](https://awesome.re)
+# Awesome Agentic AI Forensics [![Awesome](https://awesome.re/badge.svg)](https://awesome.re)
 
 > Where the evidence lives when AI took part in the attack — organised by how much the model decided on its own.
 
@@ -6,7 +6,22 @@ Investigating an AI-involved case is not a new discipline. It is the old one, po
 
 A model that wrote code leaves traces in a repository. A model that ran commands leaves a transcript on the operator's own disk. A model that chose its own targets leaves a state directory with keys in it. A model that managed other models leaves a project archive.
 
+**Scope.** Artifacts left on disk by AI coding agents, assistants and orchestration frameworks. Out of scope: model forensics, provenance and watermarking of model weights, training-data analysis, model theft and adversarial ML.
+
 Every path here has a source. **An unsourced path is a guess, and guesses do not survive cross-examination.**
+
+### How to read an entry
+
+Each claim falls into one of four classes. Mixing them up is how a good lead becomes a bad conclusion.
+
+| Class | Meaning |
+|---|---|
+| **Observed artifact** | A file, path or record documented in a source. Verifiable on a disk image |
+| **Investigative lead** | Points somewhere worth looking. Proves nothing on its own |
+| **Corroborative indicator** | Supports a hypothesis alongside other evidence. Probabilistic |
+| **Attribution inference** | A conclusion about who or why. Requires the strongest support and the most caveats |
+
+Where a path was verified on a specific platform and version, it is stated. Session formats and retention defaults change fast — re-verify before relying on anything here in casework.
 
 *Compiled while preparing the talk “Man-in-the-Agent” for KazHackStan 2026 — [khs2026.pandoral.me](https://khs2026.pandoral.me)*
 
@@ -17,7 +32,7 @@ Every path here has a source. **An unsourced path is a guess, and guesses do not
 - [Level 2 — AI ran the commands](#level-2--ai-ran-the-commands)
 - [Level 3 — AI chose its own targets](#level-3--ai-chose-its-own-targets)
 - [Level 4 — AI managed other AI](#level-4--ai-managed-other-ai)
-- [Where the model itself ran](#where-the-model-itself-ran)
+- [Local runtimes and clients](#local-runtimes-and-clients)
 - [Provider, network and host](#provider-network-and-host)
 - [Collection order](#collection-order)
 - [Anti-forensics indicators](#anti-forensics-indicators)
@@ -32,9 +47,11 @@ Every path here has a source. **An unsourced path is a guess, and guesses do not
 | Level | What the model did | What the human still did | Where the evidence concentrates |
 |---|---|---|---|
 | **1** | Wrote the code | Ran the attack himself | Development host: repository, specs, agent config files |
-| **2** | Ran the commands | Typed every instruction | Operator host: session transcripts, persistent prompt |
+| **2** | Ran the commands | Directed the work, step by step | Operator host: session transcripts, persistent prompt |
 | **3** | Chose its own targets | Started the session and walked away | Agent state: config, memory, credentials, shell history |
 | **4** | Managed other AI | Stated the goal | Orchestrator workspace: plans, scored hypotheses, wave reports |
+
+**This is an investigative triage model, not a standardized maturity scale.** Levels overlap: a single case can contain level 1 tooling, level 2 sessions and level 4 orchestration at once. Use it to decide where to look first, not to classify a case.
 
 ---
 
@@ -59,6 +76,8 @@ Routinely committed, rarely thought of as evidence. They contain the instruction
 | `.aider*` | Aider |
 | `.opencode` | OpenCode |
 
+**What these files do and do not show.** *Investigative lead.* Their presence shows a tool was installed or configured in that project — nothing more. `.replit`, `.deepsource.toml` and `.coderabbit.yaml` in particular indicate platform or review-bot configuration and say nothing about how any specific line was written. Their value is in the **content**: the instructions the human wrote for the model.
+
 Scale, from a census of 180M repositories: **888,177** blobs of `CLAUDE.md`/`.claude/`, 317,512 of `.replit`, 211,166 of `copilot-instructions.md`, 134,810 of `AGENTS.md`, 29,689 of `.cursorrules`, 19,453 of `GEMINI.md` — *[Detecting AI Coding Agents in Open Source, arXiv:2606.24429](https://arxiv.org/abs/2606.24429)*. Agent-detection tooling uses the same marker set — *[vetto](https://docs.rs/crate/vetto/latest/source/src/onboard.rs)*
 
 In the VoidLink case the equivalent artifacts were **TRAE IDE helper files**, copied to the server alongside the source, which preserved fragments of the original prompts — *[Check Point Research](https://research.checkpoint.com/2026/voidlink-early-ai-generated-malware-framework/)*
@@ -81,7 +100,7 @@ Same census: 28,154 commits found by bot account, **821,824 more** by message si
 
 ### Code-level stylometry
 
-Unlike metadata, this cannot be switched off.
+*Corroborative indicator.* Harder to remove than metadata, but not immune: refactoring, comment stripping, reformatting, minification, human editing and mixed authorship all degrade or destroy these signals. Published results show classification is feasible **on controlled samples**; they do not establish reliable attribution of arbitrary code in the wild. Treat stylometry as support for a hypothesis, never as proof of authorship.
 
 - **Comment phrasing** — the single strongest attribution signal across model families; block versus inline habits differ by vendor — *[Code Fingerprints, arXiv:2603.04212](https://arxiv.org/abs/2603.04212)*, *[I Know Which LLM Wrote Your Code Last Summer](https://dl.acm.org/doi/10.1145/3733799.3762964)*
 - **Comment density and verb-to-comment ratio** — cheap, interpretable, CPU-only — *[SemEval-2026 Task 13, arXiv:2605.04157](https://arxiv.org/abs/2605.04157)*
@@ -107,13 +126,15 @@ Artifacts of spec-driven development and of sessions stitched together:
 - Sprint plans, feature breakdowns, coding guidelines, test reports — often Markdown, often committed
 - **The language of the documentation**, not of the code. In VoidLink this, not code style, carried the attribution
 - Choice of IDE and model; build and test infrastructure
-- **Reproduction as proof**: Check Point re-ran the same documentation through the same IDE workflow and obtained near-identical code. If a project is reproducible from its specification, code stylometry has nothing left to attribute
+- **Reproduction as a plausibility test** *(attribution inference — handle with care)*: Check Point re-ran the same documentation through the same IDE workflow and obtained code closely resembling the original. This shows the artifacts are **compatible** with that workflow and that the specification, not the code, carries the distinguishing detail. It does not establish who produced the original or how. The vendor writes about resemblance and reproducibility, not proof of origin
 
 ---
 
 ## Level 2 — AI ran the commands
 
-One human, one session, the model executing. Every mainstream agent writes a complete record of what it did to local disk. This is the richest evidence base in the whole list — and the one most often missed, because it sits in the *operator's* profile, not on the victim.
+One human, one session, the model executing. Many mainstream agents persist substantial local session state — prompts, tool calls, results and file changes. **Completeness varies by tool, version, configuration and failure mode**: truncation, context compaction, retention settings, crashes and manual editing all leave gaps.
+
+This is still the richest evidence base in the list, and the one most often missed — because it sits in the *operator's* profile, not on the victim.
 
 ### Claude Code
 
@@ -133,11 +154,11 @@ Relative to `~/.claude/`; `CLAUDE_CONFIG_DIR` overrides the root. Source: *[Expl
 
 Project directory naming: every non-alphanumeric character of the absolute working directory replaced with `-`. Retention governed by `cleanupPeriodDays`; Desktop and Cowork transcripts have a separate `desktopSessionCleanupPeriodDays`.
 
-**Three properties worth reading twice:**
+**Three properties worth reading twice** *(observed behaviour, documented by the vendor — not guarantees):*
 
-1. **Nothing is encrypted at rest.** OS file permissions are the only protection.
-2. **Everything that passed through a tool is in the transcript** — file contents, command output, pasted text. If a tool read a `.env` or a command printed a credential, it is there in plain text.
-3. **Deleted is not deleted.** Superseded and orphaned transcripts are set aside, not erased.
+1. **Not encrypted at rest.** OS file permissions are the only protection.
+2. **Content that passes through a tool is written to the transcript** — file contents, command output, pasted text. The documentation is explicit that a credential printed by a command or read from a `.env` lands there in plain text. Expect gaps all the same: truncated tool results, context compaction, secrets passed through the environment rather than a tool, and anything done outside the agent's tool interface.
+3. **In the documented supersession and orphaning workflows, earlier transcripts may remain on disk** after they disappear from the session picker. This is a specific mechanism, not a general guarantee that deletion never removes data — the cleanup sweep governed by `cleanupPeriodDays` does delete.
 
 ### Codex CLI
 
@@ -198,7 +219,7 @@ Bubbles carry over 100 metadata fields each, including tool outputs and thinking
 
 **Cursor CLI** (`cursor-agent`) is a separate store: `~/.cursor/chats`.
 
-Sources: *[txcript: Cursor desktop format](https://docs.rs/crate/txcript/latest/source/docs/formats/cursor-desktop.md)*, *[cursaves: How Cursor Stores Chat Data](https://github.com/Callum-Ward/cursaves/blob/main/docs/how-cursor-stores-chats.md)*, *[cursor-chronicle](https://github.com/mikhailsal/cursor-chronicle)*
+The format is closed-source and undocumented by the vendor — everything above is reverse-engineered from real sessions, observed on Cursor 3.16 and 3.17.8 on macOS, and differs between Cursor 2.x and 3.0+. Sources: *[txcript: Cursor desktop format](https://docs.rs/crate/txcript/latest/source/docs/formats/cursor-desktop.md)*, *[cursaves](https://github.com/Callum-Ward/cursaves/blob/main/docs/how-cursor-stores-chats.md)*, *[cursor-chronicle](https://github.com/mikhailsal/cursor-chronicle)*
 
 ### Cline, Roo Code, Kilo Code
 
@@ -260,7 +281,7 @@ An agent stands between the human and the victim, with its own configuration, me
 
 ### OpenClaw
 
-Relative to `~/.openclaw/`. Source: *[Gruber & Hilgert, arXiv:2604.05589, Table 1](https://arxiv.org/abs/2604.05589)* — the first forensic study of a personal AI assistant
+Relative to `~/.openclaw/`. Source: *[Gruber & Hilgert, arXiv:2604.05589, Table 1](https://arxiv.org/abs/2604.05589)* — the first forensic study of a personal AI assistant. Verified on OpenClaw 2026.2.2-3, Debian GNU/Linux 13, disk artifacts only (memory and network out of scope). The authors note the codebase moves fast enough to make this a snapshot.
 
 | Path | Contents |
 |---|---|
@@ -349,13 +370,13 @@ From a 160 MB / 1,395-file workspace archive left accessible online — *[DREAM 
 
 ---
 
-## Where the model itself ran
+## Local runtimes and clients
 
-If the model ran locally there is a second evidence base entirely, and it is often richer than the cloud one, because nothing was stateless.
+Where the model ran locally — or where a desktop client held the conversation even though inference happened elsewhere — there is a second evidence base, often richer than the cloud one.
 
 ### Local runtimes and desktop clients
 
-Windows paths from *[LangurTrace, FSI:DI 54 (2025), Appendix A](https://www.sciencedirect.com/science/article/pii/S2666281725001271)* (open access); cross-platform coverage in *[Murtuza, arXiv:2603.23996](https://arxiv.org/abs/2603.23996)*
+Windows paths from *[LangurTrace, FSI:DI 54 (2025), Appendix A](https://www.sciencedirect.com/science/article/pii/S2666281725001271)* (open access), verified on Windows 11 Pro 24H2 build 26100.3775 with Ollama 0.6.5, Chatbox 1.11.8, LM Studio 0.3.14, Msty 1.8.5, Jan 0.5.16 and GPT4All 3.10.0. Cross-platform coverage, including memory, in *[Murtuza, arXiv:2603.23996](https://arxiv.org/abs/2603.23996)*
 
 | App | Artifact | Location |
 |---|---|---|
@@ -397,13 +418,18 @@ Linux and macOS equivalents live under `~/.ollama/`, `~/.lmstudio/`, `~/.config/
 
 The authors' own caveat: "not recoverable" means *not recoverable by disk-level parsing*. Volume Shadow Copies, live memory, SQLite freelist and WAL carving, and LevelDB slack were out of scope and may still yield records.
 
-**Why model metadata matters.** Which model was downloaded, and when, speaks to intent — many published models are purpose-built. Manifests carry SHA-256 digests you can cross-reference against public hubs, and LM Studio preserves the original download URL, so the exact file can be re-fetched.
+**Why model metadata matters.** *Investigative lead.* Which model was downloaded, and when, speaks to capability, preparation and interest — many published models are purpose-built. It does not by itself establish intent. Manifests carry SHA-256 digests you can cross-reference against public hubs, and LM Studio preserves the original download URL, so the exact file can be re-fetched.
 
 ### Cloud chat clients
 
 - **ChatGPT mobile** — first forensic analysis, across Android, iOS and cloud storage — *[Dragonas, Lambrinoudakis & Nakoutis, FSI:DI 50 (2024)](https://www.sciencedirect.com/science/article/pii/S2666281724001252)*
 - **ChatGPT, Gemini, Copilot and Claude compared** — *[Cho et al., FSI:DI 52 (2025)](https://www.sciencedirect.com/science/article/pii/S2666281724001823)*
-- **The asymmetry that decides your strategy:** browser-accessed conversations persist server-side; **API-key access is generally stateless**, so cloud-side collection will not help if the subject used a local client with a key. Local application storage holds the context in that case — *[LangurTrace §3.4](https://www.sciencedirect.com/science/article/pii/S2666281725001271)*
+- **The asymmetry that decides your strategy.** Browser-accessed conversations persist server-side and are visible in the account. API-key access behaves differently, and it is worth separating three things rather than calling it "stateless":
+  - **no user-visible persistent conversation** — the history is not in the account UI;
+  - **possible provider-side retention** — request metadata, abuse-monitoring logs and, for some API types, limited conversational state or audit trails;
+  - **local client-side state** — the application stores the context and resends it with every call, which is where your evidence actually is.
+
+  Cloud-side collection is therefore a weak first move against a local client with an API key, but not an empty one — *[LangurTrace §3.4](https://www.sciencedirect.com/science/article/pii/S2666281725001271)*
 
 ---
 
@@ -428,13 +454,15 @@ The authors' own caveat: "not recoverable" means *not recoverable by disk-level 
 The old artifacts still carry the case:
 
 - `.bash_history`, `.zsh_history`, PowerShell console history
-- Windows Prefetch (`.pf`) and Application Compatibility Cache (Shimcache) — proof a CLI agent executed
+- Windows Prefetch (`.pf`) — supports an inference of execution. Application Compatibility Cache (Shimcache) records that the system **observed** a file, which is not the same as running it. Treat both as potential execution and presence evidence, and corroborate with Amcache, SRUM, UserAssist, process-creation logs and EDR telemetry
 - Memory: prompts, the assembled context window and decrypted keys never written to disk — LiME on Linux, WinPmem on Windows — *[Murtuza, arXiv:2603.23996](https://arxiv.org/abs/2603.23996)*
 - systemd units, launchd plists and cron entries that start agents at boot
 
 ---
 
 ## Collection order
+
+**Before any of this:** confirm authority and scope, capture system and reference clock offsets, hash everything on acquisition, work from read-only copies where possible, and document every change your own live-response makes to the system. Live collection from a running agent host alters that host — record what you touched and when.
 
 Ordered by how fast the evidence disappears, not by how easy it is to get.
 
@@ -585,7 +613,11 @@ Pull requests welcome. Priorities:
 - Retention defaults for tools not covered here
 - New primary case reports
 
-**Every artifact needs a source** — vendor documentation, a peer-reviewed paper, or a tool whose parser demonstrably reads that path. Please include the platform you verified it on and the version.
+**Every artifact needs a source** — vendor documentation, a peer-reviewed paper, or a tool whose parser demonstrably reads that path.
+
+For each set of paths, please state: operating system, tool version tested, date last verified, and source type (vendor docs / peer-reviewed / reverse-engineered / community). Mark each claim with its class — observed artifact, investigative lead, corroborative indicator or attribution inference.
+
+Session formats and retention defaults are the fastest-moving part of this list. Automated link checking and a periodic re-verification pass are welcome contributions in themselves.
 
 ## Ethics
 
